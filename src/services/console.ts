@@ -2,6 +2,20 @@
 import c from 'chalk';
 import { log as l } from 'console';
 import { ZodError } from 'zod';
+import { codeToANSI } from '@shikijs/cli';
+import lu from 'log-update';
+
+export { lu };
+export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'nord') {
+  return codeToANSI(src, 'json', theme);
+}
+
+export function wip(message: string, icon: string = '✂︎') {
+  l(c.yellow(`${icon}`), `${message}`);
+}
+export function success(message: string, icon: string = '✔') {
+  l(c.green(`${icon}`), `${message}`);
+}
 
 export function printDiff(title: string, a: string, b: string) {
   l(c.bold(`\n✨${title}\n`));

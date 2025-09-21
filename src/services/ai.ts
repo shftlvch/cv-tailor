@@ -2,12 +2,16 @@ import { OpenAI } from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import type { ResponsesModel } from 'openai/resources';
 import type z from 'zod';
+import { formatJson, lu } from './console';
+import ora from 'ora';
 
-const MODEL: ResponsesModel = 'gpt-5';
+const MODEL: ResponsesModel = 'gpt-5-nano';
 
 const createAiClient = () => {
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
+    timeout: 60000, // 60 seconds timeout
+    maxRetries: 3, // Retry failed requests up to 3 times
   });
 };
 
@@ -37,8 +41,14 @@ export const createChat = async (opts: { systemPrompt: string; userPrompt: strin
 };
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-export async function askStructured<T extends z.ZodType<any, z.ZodTypeDef, any>>(opts: { previousResponseId?: string; systemPrompt: string; userPrompt: string; schema: T }) {
-  const res = await ai.responses.parse({
+export async function askStructured<T extends z.ZodType<any, z.ZodTypeDef, any>>(opts: {
+  previousResponseId?: string;
+  systemPrompt: string;
+  userPrompt: string;
+  schema: T;
+  maxOutputTokens?: number;
+}) {
+  const stream = ai.responses.stream({
     model: MODEL,
     input: [
       { role: 'system', content: opts.systemPrompt },
@@ -50,12 +60,35 @@ export async function askStructured<T extends z.ZodType<any, z.ZodTypeDef, any>>
     text: {
       format: zodTextFormat(opts.schema, 'structured'),
     },
-    max_output_tokens: 8000,
+    max_output_tokens: opts.maxOutputTokens ?? 8000,
     ...(opts.previousResponseId ? { previous_response_id: opts.previousResponseId } : {}),
   });
 
+  let outputBuffer = '';
+  const spinner = ora();
+  for await (const event of stream) {
+    switch (event.type) {
+      case 'response.in_progress': {
+        spinner.start('Thinking...');
+        break;
+      }
+      case 'response.output_text.delta': {
+        outputBuffer += event.delta;
+        spinner.stop();
+        lu(await formatJson(outputBuffer));
+        break;
+      }
+      case 'response.completed': {
+        lu.done();
+        spinner.succeed('Done');
+        break;
+      }
+    }
+  }
+
+  const response = await stream.finalResponse();
   // Parsed result lives on the first output message’s first content item
-  const msg = res.output?.find((o) => o.type === 'message');
+  const msg = response.output?.find((o) => o.type === 'message');
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const content = (msg as any)?.content?.[0];
   if (!content?.parsed) throw new Error('No parsed JSON received');

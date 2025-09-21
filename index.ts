@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
 import { createBrowser } from '@/services/browser';
-import { formatZodError, printDiff } from '@/services/console';
+import { formatZodError, printDiff, success, wip } from '@/services/console';
 import { loadCV, type CV } from '@/services/cv';
 import { scrapeUrl } from '@/services/scraper';
 import { generateInlinedHTML } from '@/services/ssg';
 import { jdExtract, merge, tailor, type JD, type TailoredCv } from '@/services/tailor';
 import { file, write } from 'bun';
-import c from 'chalk';
 import { error as e, log as l } from 'console';
 import ora from 'ora';
 import prompts from 'prompts';
@@ -67,7 +66,9 @@ if (opts.jd) {
   let jdRaw: string | null = null;
 
   if (opts.jdUrl) {
+    spinner.start(`Scraping job description from URL: ${opts.jdUrl}`);
     jdRaw = await scrapeUrl(opts.jdUrl);
+    spinner.succeed('Job description scraped');
   } else {
     const jdType = await prompts({
       type: 'select',
@@ -105,13 +106,11 @@ if (opts.jd) {
     }
   }
 
-  spinner.start('Extracting job description');
+  wip('Extracting job description')
   jd = await jdExtract(jdRaw);
   await write(`${tmpDir}/jd-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(jd, null, 2));
-  spinner.succeed('Job description extracted');
+  success('Job description extracted');
 }
-
-spinner.succeed('Job description loaded');
 
 let optimisedResponse: TailoredCv | null = null;
 /**
@@ -120,12 +119,12 @@ let optimisedResponse: TailoredCv | null = null;
  *
  */
 if (!opts.generateOnly) {
-  spinner.start('Optimizing CV');
+  wip('Optimizing CV');
   optimisedResponse = await tailor(cv, jd);
   await write(`${tmpDir}/optimised-cv-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(optimisedResponse, null, 2));
-  spinner.succeed('CV optimised');
+  success('CV optimised');
 
-  l(c.bold('[ Please review the output ]\n\n'));
+  l('\n\n--- Please review the output ---\n\n');
   printDiff(`Titles: (match: ${optimisedResponse.titles.relevanceScore})`, cv.titles.join(' | '), optimisedResponse.titles.optimisedTitles.join(' | '));
 
   const titlesConfirmed = await prompts({
