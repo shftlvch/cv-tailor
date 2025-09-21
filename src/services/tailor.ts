@@ -46,7 +46,7 @@ ${jd.structured}
 }
 
 const OptimiseTitlesSchema = z.object({
-  relevanceScore: z.number(),
+  relevanceScore: z.number().describe('The relevance score of the original titles to the job description.'),
   optimisedTitles: TitlesSchema,
 });
 
@@ -90,16 +90,16 @@ Formatting:
 }
 
 const OptimiseWorkExperienceSchema = z.object({
-  relevanceScore: z.number(),
+  relevanceScore: z.number().describe('The relevance score of the work experience to the job description.'),
   optimisedAchievements: z.array(
     z.object({
-      relevanceScore: z.number(),
+      relevanceScore: z.number().describe('The relevance score of the achievement to the job description.'),
       optimisedAchievement: WorkExperienceAchievementSchema,
     })
   ),
   optimisedStack: z.array(
     z.object({
-      relevanceScore: z.number(),
+      relevanceScore: z.number().describe('The relevance score of the stack item to the job description.'),
       optimisedStack: WorkExperienceStackItemSchema,
     })
   ),
@@ -160,14 +160,38 @@ export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
 }
 
 const JDExctractionSchema = z.object({
-  jobTitle: z.string(),
-  jobDescription: z.string(),
-  techStack: z.array(z.string()),
-  keyRequirements: z.array(z.string()),
-  keySkills: z.array(z.string()),
-  industryContext: z.string(),
-  companyName: z.string(),
-  companyCountry: z.string(),
+  jobTitle: z.string().describe('The title of the job'),
+  jobDescription: z.string().describe('The description of the job'),
+  techStack: z.array(z.string()).describe('The tech stack of the job'),
+  keyRequirements: z.array(z.string()).describe('The key requirements of the job'),
+  keySkills: z.array(z.string()).describe('The key skills of the job'),
+  industryContext: z.string().describe('The industry context of the job and the company'),
+  companyName: z.string().describe('The name of the company'),
+  companyCountry: z.string().describe('The country of the company'),
+  atsType: z.enum([
+    'greenhouse',
+    'lever',
+    'workable',
+    'indeed',
+    'ziprecruiter',
+    'bamboohr',
+    'icims',
+    'taleo',
+    'adp',
+    'smartrecruiters',
+    'bullhorn',
+    'jazzhr',
+    'breezyhr',
+    'recruitee',
+    'ashby',
+    'jobvite',
+    'successfactors',
+    'hibob',
+    'rippling',
+    'gusto',
+    'other'
+  ]),
+  customAtsType: z.string().describe('If the ATS type is other, please specify the name of the ATS.').optional().nullable(),
 });
 
 export type JD = {
