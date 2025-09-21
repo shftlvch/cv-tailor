@@ -21,6 +21,9 @@ const { values: opts } = parseArgs({
     jd: {
       type: 'string',
     },
+    jdUrl: {
+      type: 'string',
+    },
     generateOnly: {
       type: 'boolean',
     },
@@ -61,40 +64,45 @@ let jd: JD;
 if (opts.jd) {
   jd = await file(opts.jd).json();
 } else {
-  const jdType = await prompts({
-    type: 'select',
-    name: 'jdType',
-    message: 'How do you want to enter the job description?',
-    choices: [
-      { title: 'URL', value: 'url' },
-      { title: 'Plain text', value: 'text' },
-    ],
-  });
-
   let jdRaw: string | null = null;
-  if (jdType.jdType === 'url') {
-    const urlAnswers = await prompts({
-      type: 'text',
-      name: 'url',
-      message: 'Enter the job description URL',
-    });
 
-    const url = urlAnswers.url;
-    spinner.start(`Scraping job description from URL: ${url}`);
-    jdRaw = await scrapeUrl(url);
-    spinner.succeed('Job description scraped');
+  if (opts.jdUrl) {
+    jdRaw = await scrapeUrl(opts.jdUrl);
   } else {
-    const jdPrompt = await prompts({
-      type: 'text',
-      name: 'jd',
-      message: 'Enter the job description',
+    const jdType = await prompts({
+      type: 'select',
+      name: 'jdType',
+      message: 'How do you want to enter the job description?',
+      choices: [
+        { title: 'URL', value: 'url' },
+        { title: 'Plain text', value: 'text' },
+      ],
     });
-    jdRaw = jdPrompt.jd;
-  }
 
-  if (!jdRaw) {
-    spinner.fail('No job description provided or failed to scrape');
-    process.exit(1);
+    if (jdType.jdType === 'url') {
+      const urlAnswers = await prompts({
+        type: 'text',
+        name: 'url',
+        message: 'Enter the job description URL',
+      });
+
+      const url = urlAnswers.url;
+      spinner.start(`Scraping job description from URL: ${url}`);
+      jdRaw = await scrapeUrl(url);
+      spinner.succeed('Job description scraped');
+    } else {
+      const jdPrompt = await prompts({
+        type: 'text',
+        name: 'jd',
+        message: 'Enter the job description',
+      });
+      jdRaw = jdPrompt.jd;
+    }
+
+    if (!jdRaw) {
+      spinner.fail('No job description provided or failed to scrape');
+      process.exit(1);
+    }
   }
 
   spinner.start('Extracting job description');
