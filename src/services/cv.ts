@@ -8,9 +8,9 @@ export const ContactSchema = z.object({
   type: z.enum(['phone', 'email', 'github', 'linkedin', 'website']),
   value: z.string(),
 });
-export const WorkExperienceStackItemSchema = z.string().max(18);
+export const WorkExperienceStackItemSchema = z.string();
 export const WorkExperienceStackSchema = z.array(WorkExperienceStackItemSchema);
-export const WorkExperienceAchievementSchema = z.string().min(50).max(150);
+export const WorkExperienceAchievementSchema = z.string();
 export const WorkExperienceAchievementsSchema = z.array(WorkExperienceAchievementSchema);
 // Work experience schema
 export const WorkExperienceSchema = z.object({
@@ -44,8 +44,8 @@ export const ExtrasSchema = z.object({
   description: z.string().optional().nullable(),
 });
 
-export const TitlesSchema = z.array(z.string().min(15).max(30)).min(3).max(3);
-export const ProfileSchema = z.string().min(450).max(550);
+export const TitlesSchema = z.array(z.string()).max(3);
+export const ProfileSchema = z.string();
 // Main CV schema
 export const CVSchema = z.object({
   name: z.string(),
