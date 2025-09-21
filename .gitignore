@@ -55,3 +55,4 @@ node_modules/
 .tmp
 .examples
 *.yaml
+*.pdf
