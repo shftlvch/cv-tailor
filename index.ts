@@ -17,6 +17,10 @@ const tmpDir = './.tmp';
 const { values: opts } = parseArgs({
   args: Bun.argv,
   options: {
+    cv: {
+      type: 'string',
+      default: 'cv.yaml',
+    },
     jd: {
       type: 'string',
     },
@@ -25,6 +29,7 @@ const { values: opts } = parseArgs({
     },
     out: {
       type: 'string',
+      default: 'cv.pdf',
     },
     generateOnly: {
       type: 'boolean',
@@ -46,7 +51,7 @@ const spinner = ora();
 spinner.start('Loading CV');
 let cv: CV;
 try {
-  cv = await loadCV();
+  cv = await loadCV(opts.cv);
 } catch (error) {
   if (error instanceof ZodError) {
     e(formatZodError(error));

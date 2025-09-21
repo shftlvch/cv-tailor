@@ -67,7 +67,7 @@ export type WorkExperience = z.infer<typeof WorkExperienceSchema>;
 export type Education = z.infer<typeof EducationSchema>;
 export type Extras = z.infer<typeof ExtrasSchema>;
 
-export async function loadCV(path = 'cv.yaml') {
+export async function loadCV(path: string) {
   const content = await file(path).text();
   /** @ts-expect-error (Bun.YAML is not typed yet) */
   const cvRaw = Bun.YAML.parse(content);

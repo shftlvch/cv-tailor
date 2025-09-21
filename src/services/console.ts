@@ -12,30 +12,30 @@ export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'n
 
 export async function intro() {
   const promise = new Promise((resolve) => {
-    // const frames = ['-', '\\', '|', '/'];
+    const frames = [`🪡  CV TAILOR 🪡 `, `✂️  CV TAILOR ✂️ `, `🧵 CV TAILOR 🧵`, `🧶 CV TAILOR 🧶`, `📍 CV TAILOR 📍`];
+    const frame = (n: number) => `
+${borderChar.repeat(length)}\n
+${fillChar.repeat(42)}${frames[n % frames.length]}${fillChar.repeat(43)}\n
+${borderChar.repeat(length)}`;
+
     const length = 100;
     const borderChar = '-';
     const fillChar = '-';
-    const frame = (n: number) => `
-${borderChar.repeat(length)}
-${fillChar.repeat(n)}${c.yellow('✂︎')}${fillChar.repeat(length - n - 1)}
-${borderChar.repeat(length)}`;
 
     let index = 0;
     const interval = setInterval(() => {
       const n = (index = ++index % length);
       lu(frame(n));
-      if (index === length - 1) {
-        clearInterval(interval);
-        const title = '✂︎ CV TAILOR ✂︎';
-
-        lu.persist(`
+    }, 200);
+    setTimeout(() => {
+      clearInterval(interval);
+      const title = '✂︎ CV TAILOR ✂︎';
+      lu.persist(`
 ${borderChar.repeat(length)}
 ${fillChar.repeat(43)}${c.yellow(title)}${fillChar.repeat(44)}
 ${borderChar.repeat(length)}`);
-        resolve(true);
-      }
-    }, 30);
+      resolve(true);
+    }, 3000);
   });
   return promise;
 }
