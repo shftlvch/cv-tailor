@@ -2,7 +2,7 @@ import z from 'zod';
 import { askStructured, createChat } from './ai';
 import { type CV, type Profile, ProfileSchema, type Titles, TitlesSchema, type WorkExperience, WorkExperienceAchievementSchema, WorkExperienceStackItemSchema } from './cv';
 
-async function seed(
+export async function seed(
   jd: JD,
   options?: {
     language: string;
@@ -50,7 +50,7 @@ const OptimiseTitlesSchema = z.object({
   optimisedTitles: TitlesSchema,
 });
 
-async function optimiseTitles(previousResponseId: string, titles: Titles) {
+export async function tailorTitles(previousResponseId: string, titles: Titles) {
   const systemPrompt = `
 Optimise the titles of the CV.
 
@@ -66,6 +66,7 @@ Formatting:
     userPrompt: `Current titles: 
 ${JSON.stringify(titles, null, 2)}`,
     schema: OptimiseTitlesSchema,
+    progress: 'status',
   });
 }
 
@@ -74,7 +75,7 @@ const OptimiseProfileSchema = z.object({
   optimisedProfile: ProfileSchema,
 });
 
-async function optimiseProfile(previousResponseId: string, profile: Profile) {
+export async function tailorProfile(previousResponseId: string, profile: Profile) {
   const systemPrompt = `
 Optimise the profile of the CV.
 
@@ -86,6 +87,7 @@ Formatting:
     systemPrompt,
     userPrompt: `Current profile: ${profile}`,
     schema: OptimiseProfileSchema,
+    progress: 'status',
   });
 }
 
@@ -105,7 +107,7 @@ const OptimiseWorkExperienceSchema = z.object({
   ),
 });
 
-async function optimiseWorkExperience(previousResponseId: string, workExperience: WorkExperience[]) {
+export async function tailorWorkExperience(previousResponseId: string, workExperience: WorkExperience[]) {
   const systemPrompt = `
 Optimise the work experience of the CV.
 
@@ -120,18 +122,21 @@ Optimise:
         systemPrompt,
         userPrompt: `Current work experience: ${JSON.stringify(work, null, 2)}`,
         schema: OptimiseWorkExperienceSchema,
+        progress: 'none',
       })
     )
   );
 }
 
-export async function tailor(originalCv: CV, jd: JD) {
+
+
+export async function tailorAll(originalCv: CV, jd: JD) {
   const seedResponseId = await seed(jd);
 
   const [titles, profile, workExperience] = await Promise.all([
-    optimiseTitles(seedResponseId, originalCv.titles),
-    optimiseProfile(seedResponseId, originalCv.profile),
-    optimiseWorkExperience(seedResponseId, originalCv.work),
+    tailorTitles(seedResponseId, originalCv.titles),
+    tailorProfile(seedResponseId, originalCv.profile),
+    tailorWorkExperience(seedResponseId, originalCv.work),
   ]);
 
   return {
@@ -142,7 +147,7 @@ export async function tailor(originalCv: CV, jd: JD) {
   };
 }
 
-export type TailoredCv = Awaited<ReturnType<typeof tailor>>;
+export type TailoredCv = Awaited<ReturnType<typeof tailorAll>>;
 
 export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
   const mergedWorkExperience: WorkExperience[] = originalCv.work.map((work, index) => ({
@@ -206,6 +211,7 @@ export async function jdExtract(jobDescription: string): Promise<JD> {
       'You are an expert at structured data extraction. You will be given semi-structured html text from a website representing a job description. You will need to extract and convert into given structure. Do not modify the original text.',
     userPrompt: jobDescription,
     schema: JDExctractionSchema,
+    progress: 'raw',
   });
   return {
     structured: response,

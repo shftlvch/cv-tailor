@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 import { createBrowser } from '@/services/browser';
-import { formatZodError, printDiff, success, wip } from '@/services/console';
+import { formatZodError, intro, printDiff, success, wip } from '@/services/console';
 import { loadCV, type CV } from '@/services/cv';
 import { scrapeUrl } from '@/services/scraper';
 import { generateInlinedHTML } from '@/services/ssg';
-import { jdExtract, merge, tailor, type JD, type TailoredCv } from '@/services/tailor';
+import { jdExtract, merge, seed, tailorProfile, tailorTitles, tailorWorkExperience, type JD, type TailoredCv } from '@/services/tailor';
 import { file, write } from 'bun';
-import { error as e, log as l } from 'console';
+import { error as e } from 'console';
 import ora from 'ora';
 import prompts from 'prompts';
 import { parseArgs } from 'util';
@@ -23,6 +23,9 @@ const { values: opts } = parseArgs({
     jdUrl: {
       type: 'string',
     },
+    out: {
+      type: 'string',
+    },
     generateOnly: {
       type: 'boolean',
     },
@@ -30,6 +33,8 @@ const { values: opts } = parseArgs({
   strict: true,
   allowPositionals: true,
 });
+
+await intro();
 
 const spinner = ora();
 
@@ -106,26 +111,29 @@ if (opts.jd) {
     }
   }
 
-  wip('Extracting job description')
+  wip('Extracting job description');
   jd = await jdExtract(jdRaw);
   await write(`${tmpDir}/jd-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(jd, null, 2));
   success('Job description extracted');
 }
 
-let optimisedResponse: TailoredCv | null = null;
+let tailoredCv: TailoredCv | null = null;
 /**
  *
  * Optimize CV
  *
  */
 if (!opts.generateOnly) {
-  wip('Optimizing CV');
-  optimisedResponse = await tailor(cv, jd);
-  await write(`${tmpDir}/optimised-cv-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(optimisedResponse, null, 2));
-  success('CV optimised');
+  wip('Seeding');
+  const seedResponse = await seed(jd);
+  success('Seeded');
 
-  l('\n\n--- Please review the output ---\n\n');
-  printDiff(`Titles: (match: ${optimisedResponse.titles.relevanceScore})`, cv.titles.join(' | '), optimisedResponse.titles.optimisedTitles.join(' | '));
+  wip('Optimizing Titles');
+  const tailoredTitles = await tailorTitles(seedResponse, cv.titles);
+  // await write(`${tmpDir}/optimised-cv-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(optimisedResponse, null, 2));
+  success('Titles optimised');
+
+  printDiff(`Titles: (match: ${tailoredTitles.relevanceScore})`, cv.titles.join(' | '), tailoredTitles.optimisedTitles.join(' | '));
 
   const titlesConfirmed = await prompts({
     type: 'confirm',
@@ -137,7 +145,11 @@ if (!opts.generateOnly) {
     process.exit(1);
   }
 
-  printDiff(`Profile: (match: ${optimisedResponse.profile.relevanceScore})`, cv.profile, optimisedResponse.profile.optimisedProfile);
+  wip('Optimizing Profile');
+  const tailoredProfile = await tailorProfile(seedResponse, cv.profile);
+  success('Profile optimised');
+
+  printDiff(`Profile: (match: ${tailoredProfile.relevanceScore})`, cv.profile, tailoredProfile.optimisedProfile);
 
   const profileConfirmed = await prompts({
     type: 'confirm',
@@ -149,9 +161,13 @@ if (!opts.generateOnly) {
     process.exit(1);
   }
 
-  for (let i = 0; i < optimisedResponse.workExperience.length; i++) {
+  wip('Optimizing Work Experience');
+  const tailoredWorkExperience = await tailorWorkExperience(seedResponse, cv.work);
+  success('Work Experience optimised');
+
+  for (let i = 0; i < tailoredWorkExperience.length; i++) {
     const originalWorkExperience = cv.work[i];
-    const workExperience = optimisedResponse.workExperience[i];
+    const workExperience = tailoredWorkExperience[i];
     if (!workExperience || !originalWorkExperience) {
       continue;
     }
@@ -177,28 +193,36 @@ if (!opts.generateOnly) {
   if (!workExperienceConfirmed.workExperienceConfirmed) {
     process.exit(1);
   }
+
+  tailoredCv = {
+    titles: tailoredTitles,
+    profile: tailoredProfile,
+    workExperience: tailoredWorkExperience,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 /**
  *
- * Generate pdf
+ * Generate template and save as pdf
  *
  */
-spinner.start('Generating HTML');
-const html = await generateInlinedHTML(optimisedResponse ? merge(cv, optimisedResponse) : cv);
-spinner.succeed('HTML generated');
+spinner.start('Generating template');
+const html = await generateInlinedHTML(tailoredCv ? merge(cv, tailoredCv) : cv);
+spinner.succeed('Template generated');
 
 spinner.start('Generating PDF');
 const browser = await createBrowser({ headless: true });
 const page = await browser.newPage();
 await page.setContent(html, { waitUntil: 'load' });
+const pdfOut = opts.out ?? 'cv.pdf';
 await page.pdf({
-  path: 'cv.pdf',
+  path: pdfOut,
   format: 'A4',
   printBackground: true,
   margin: { top: '12mm', right: '12mm', bottom: '14mm', left: '12mm' },
 });
 await browser.close();
-spinner.succeed('Exported cv.pdf');
+spinner.succeed(`Exported ${pdfOut}`);
 
 process.exit(0);

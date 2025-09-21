@@ -47,6 +47,7 @@ export async function askStructured<T extends z.ZodType<any, z.ZodTypeDef, any>>
   userPrompt: string;
   schema: T;
   maxOutputTokens?: number;
+  progress?: 'none' | 'status' | 'raw';
 }) {
   const stream = ai.responses.stream({
     model: MODEL,
@@ -69,13 +70,19 @@ export async function askStructured<T extends z.ZodType<any, z.ZodTypeDef, any>>
   for await (const event of stream) {
     switch (event.type) {
       case 'response.in_progress': {
-        spinner.start('Thinking...');
+        if (opts.progress !== 'none') {
+          spinner.start('Thinking...');
+        }
         break;
       }
       case 'response.output_text.delta': {
-        outputBuffer += event.delta;
-        spinner.stop();
-        lu(await formatJson(outputBuffer));
+        if (opts.progress === 'status') {
+          spinner.start('Processing...');
+        } else if (opts.progress === 'raw') {
+          spinner.stop();
+          outputBuffer += event.delta;
+          lu(await formatJson(outputBuffer));
+        }
         break;
       }
       case 'response.completed': {
