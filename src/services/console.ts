@@ -10,34 +10,16 @@ export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'n
   return codeToANSI(src, 'json', theme);
 }
 
-export async function intro() {
-  const promise = new Promise((resolve) => {
-    const frames = [`🪡  CV TAILOR 🪡 `, `✂️  CV TAILOR ✂️ `, `🧵 CV TAILOR 🧵`, `🧶 CV TAILOR 🧶`, `📍 CV TAILOR 📍`];
-    const frame = (n: number) => `
-${borderChar.repeat(length)}\n
-${fillChar.repeat(42)}${frames[n % frames.length]}${fillChar.repeat(43)}\n
-${borderChar.repeat(length)}`;
-
-    const length = 100;
-    const borderChar = '-';
-    const fillChar = '-';
-
-    let index = 0;
-    const interval = setInterval(() => {
-      const n = (index = ++index % length);
-      lu(frame(n));
-    }, 200);
-    setTimeout(() => {
-      clearInterval(interval);
-      const title = '✂︎ CV TAILOR ✂︎';
-      lu.persist(`
+export function intro() {
+  const title = '✂︎ CV TAILOR ✂︎';
+  const borderChar = '-';
+  const fillChar = '-';
+  const length = 100;
+  l(`\n
 ${borderChar.repeat(length)}
 ${fillChar.repeat(43)}${c.yellow(title)}${fillChar.repeat(44)}
 ${borderChar.repeat(length)}`);
-      resolve(true);
-    }, 3000);
-  });
-  return promise;
+  l('\n');
 }
 
 export function wip(message: string, icon: string = '✂︎') {

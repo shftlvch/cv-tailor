@@ -1,17 +1,17 @@
 import * as cheerio from 'cheerio';
 import { createBrowser } from './browser';
 
-export const scrapeUrl = async (url: string) => {
-  const browser = await createBrowser();
+export const scrapeUrl = async (url: string, opts: { visualise: boolean } = { visualise: false }) => {
+  const browser = await createBrowser({ headless: !opts.visualise });
   try {
     const page = await browser.newPage();
     await page.setExtraHTTPHeaders({
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     });
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'load' });
     // Additional wait to ensure all content is loaded
-    await page.waitForLoadState('networkidle');
+    // await page.waitForLoadState('networkidle');
     const html = await page.content();
     const text = await extractTextFromHtml(html);
     return text;

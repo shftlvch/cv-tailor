@@ -21,6 +21,10 @@ const { values: opts } = parseArgs({
       type: 'string',
       default: 'cv.yaml',
     },
+    visualiseScraping: {
+      type: 'boolean',
+      default: false,
+    },
     jd: {
       type: 'string',
     },
@@ -39,7 +43,7 @@ const { values: opts } = parseArgs({
   allowPositionals: true,
 });
 
-await intro();
+intro();
 
 const spinner = ora();
 
@@ -77,7 +81,7 @@ if (opts.jd) {
 
   if (opts.jdUrl) {
     spinner.start(`Scraping job description from URL: ${opts.jdUrl}`);
-    jdRaw = await scrapeUrl(opts.jdUrl);
+    jdRaw = await scrapeUrl(opts.jdUrl, { visualise: opts.visualiseScraping });
     spinner.succeed('Job description scraped');
   } else {
     const jdType = await prompts({
@@ -99,7 +103,7 @@ if (opts.jd) {
 
       const url = urlAnswers.url;
       spinner.start(`Scraping job description from URL: ${url}`);
-      jdRaw = await scrapeUrl(url);
+      jdRaw = await scrapeUrl(url, { visualise: opts.visualiseScraping });
       spinner.succeed('Job description scraped');
     } else {
       const jdPrompt = await prompts({

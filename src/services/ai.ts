@@ -5,7 +5,7 @@ import type z from 'zod';
 import { formatJson, lu } from './console';
 import ora from 'ora';
 
-const MODEL: ResponsesModel = 'gpt-5-nano';
+const MODEL: ResponsesModel = 'gpt-5';
 
 const createAiClient = () => {
   return new OpenAI({
