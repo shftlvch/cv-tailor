@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 12mm 14mm;
+  }
+}
+
+:root {
+  font-family: Arial, sans-serif;
+}
+
+/* A4 layout for screen and print */
+.page.a4 {
+  /* A4: 210mm × 297mm */
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 12mm 14mm;
+  @apply box-border relative bg-white shadow-lg text-black mx-auto m-0;
+}
+
+/* Center on screen */
+html,
+body,
+#root {
+  @apply min-h-full bg-[#f1f5f9];
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    @apply bg-transparent;
+  }
+  .page.a4 {
+    @apply p-0 m-0 w-auto min-h-auto shadow-none;
+  }
+}
+
+/* Tailwind v4 utilities for typography */
+@utility h1 {
+  @apply text-[16pt] font-bold tracking-tight leading-tight text-black;
+}
+
+@utility h2 {
+  @apply text-[10pt] mt-[14pt] mb-0 leading-[1.2] font-bold uppercase text-black;
+}
+
+@utility h3 {
+  @apply text-[10pt] m-0 font-bold leading-tight text-black;
+}
+
+@utility subtitle {
+  @apply text-[10pt] text-gray-700 leading-tight;
+}
+
+@utility text-md {
+  @apply text-[10pt] leading-tight;
+}
