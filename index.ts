@@ -1,10 +1,19 @@
 #!/usr/bin/env bun
 import { createBrowser } from '@/services/browser';
-import { formatZodError, intro, printDiff, success, wip } from '@/services/console';
+import { c, formatZodError, intro, l, li, printDiff, success, wip } from '@/services/console';
 import { loadCV, type CV } from '@/services/cv';
 import { scrapeUrl } from '@/services/scraper';
 import { generateInlinedHTML } from '@/services/ssg';
-import { jdExtract, merge, seed, tailorProfile, tailorTitles, tailorWorkExperience, type JD, type TailoredCv } from '@/services/tailor';
+import {
+  jdExtract,
+  merge,
+  seed,
+  tailorProfile,
+  tailorTitles,
+  tailorWorkExperience,
+  type JD,
+  type TailoredCv,
+} from '@/services/tailor';
 import { file, write } from 'bun';
 import { error as e } from 'console';
 import ora from 'ora';
@@ -122,7 +131,10 @@ if (opts.jd) {
 
   wip('Extracting job description');
   jd = await jdExtract(jdRaw);
-  await write(`${tmpDir}/jd-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(jd, null, 2));
+  await write(
+    `${tmpDir}/jd-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`,
+    JSON.stringify(jd, null, 2)
+  );
   success('Job description extracted');
 }
 
@@ -138,11 +150,22 @@ if (!opts.generateOnly) {
   success('Seeded');
 
   wip('Optimizing Titles');
-  const tailoredTitles = await tailorTitles(seedResponse, cv.titles);
+  const tailoredTitles = await tailorTitles(seedResponse, cv, jd);
   // await write(`${tmpDir}/optimised-cv-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}.json`, JSON.stringify(optimisedResponse, null, 2));
   success('Titles optimised');
 
-  printDiff(`Titles: (match: ${tailoredTitles.relevanceScore})`, cv.titles.join(' | '), tailoredTitles.optimisedTitles.join(' | '));
+  printDiff(
+    `Titles: (match: ${tailoredTitles.matchScorePct})`,
+    cv.titles.join(' | '),
+    tailoredTitles.optimisedTitles.join(' | ')
+  );
+
+  l(c.bold('Gaps:'));
+  tailoredTitles.gaps.forEach((gap) => li(gap));
+  l('');
+  l(c.bold('Unconfirmed Suggestions:'));
+  tailoredTitles.suggestions.forEach((suggestion) => li(suggestion));
+  l('');
 
   const titlesConfirmed = await prompts({
     type: 'confirm',
@@ -155,10 +178,10 @@ if (!opts.generateOnly) {
   }
 
   wip('Optimizing Profile');
-  const tailoredProfile = await tailorProfile(seedResponse, cv.profile);
+  const tailoredProfile = await tailorProfile(seedResponse, cv, jd);
   success('Profile optimised');
 
-  printDiff(`Profile: (match: ${tailoredProfile.relevanceScore})`, cv.profile, tailoredProfile.optimisedProfile);
+  printDiff(`Profile: (match: ${tailoredProfile.matchScorePct})`, cv.profile, tailoredProfile.optimisedProfile);
 
   const profileConfirmed = await prompts({
     type: 'confirm',
@@ -181,15 +204,17 @@ if (!opts.generateOnly) {
       continue;
     }
     printDiff(
-      `[${i + 1}] ${originalWorkExperience.company} - ${originalWorkExperience.position} (match: ${workExperience.relevanceScore})`,
+      `[${i + 1}] ${originalWorkExperience.company} - ${originalWorkExperience.position} (match: ${workExperience.matchScorePct})`,
       originalWorkExperience.achievements.map((achievement) => `- ${achievement}`).join('\n'),
-      workExperience.optimisedAchievements.map((achievement) => `- ${achievement.optimisedAchievement} [${achievement.relevanceScore}]`).join('\n')
+      workExperience.optimisedAchievements
+        .map((achievement) => `- ${achievement.optimisedAchievement} [${achievement.matchScorePct}]`)
+        .join('\n')
     );
     if (originalWorkExperience.stack) {
       printDiff(
         'Stack:',
         originalWorkExperience.stack.map((stack) => `- ${stack}`).join('\n'),
-        workExperience.optimisedStack.map((stack) => `- ${stack.optimisedStack} [${stack.relevanceScore}]`).join('\n')
+        workExperience.optimisedStack.map((stack) => `- ${stack.optimisedStack} [${stack.matchScorePct}]`).join('\n')
       );
     }
   }

@@ -5,9 +5,12 @@ import { ZodError } from 'zod';
 import { codeToANSI } from '@shikijs/cli';
 import lu from 'log-update';
 
-export { lu };
 export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'nord') {
   return codeToANSI(src, 'json', theme);
+}
+
+function li(message: string) {
+  l(' • ', c.magentaBright(message));
 }
 
 export function intro() {
@@ -127,3 +130,5 @@ export function formatZodErrorJson(error: ZodError): string {
   };
   return JSON.stringify(formatted, null, 2);
 }
+
+export { lu, l, li, c };

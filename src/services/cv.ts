@@ -44,7 +44,7 @@ export const ExtrasSchema = z.object({
   description: z.string().optional().nullable(),
 });
 
-export const TitlesSchema = z.array(z.string()).max(3).describe('Optimised titles for the job description.');
+export const TitlesSchema = z.array(z.string()).describe('Optimised titles for the job description.');
 export const ProfileSchema = z.string().describe('Optimised profile for the job description.');
 // Main CV schema
 export const CVSchema = z.object({

@@ -1,6 +1,13 @@
 import z from 'zod';
 import { askStructured, createChat } from './ai';
-import { type CV, type Profile, ProfileSchema, type Titles, TitlesSchema, type WorkExperience, WorkExperienceAchievementSchema, WorkExperienceStackItemSchema } from './cv';
+import {
+  type CV,
+  ProfileSchema,
+  TitlesSchema,
+  type WorkExperience,
+  WorkExperienceAchievementSchema,
+  WorkExperienceStackItemSchema
+} from './cv';
 
 export async function seed(
   jd: JD,
@@ -23,7 +30,6 @@ Guidelines:
 - Use action verbs and quantifiable achievements
 - Incorporate relevant keywords naturally
 - Maintain truthfulness - enhance but don't fabricate
-// - Prioritize sections based on job relevance
 
 The optimisation should:
 1. Align content with job requirements
@@ -45,63 +51,125 @@ ${jd.structured}
   });
 }
 
+const MatchScoreSchema = z
+  .number()
+  .min(0)
+  .max(100)
+  .describe('The match score of the original CV to the job description in percentage from 0 to 100.');
+
 const OptimiseTitlesSchema = z.object({
-  relevanceScore: z.number().describe('The relevance score of the original titles to the job description.'),
+  matchScorePct: MatchScoreSchema.describe(
+    'The match score of the original titles to the job description in percentage from 0 to 100.'
+  ),
   optimisedTitles: TitlesSchema,
+  gaps: z
+    .array(z.string())
+    .describe('What is missing from the titles to make them more relevant to the job description.'),
+  suggestions: z
+    .array(z.string())
+    .describe('Any unconfirmed suggestions that would work 100% for ATS parsing but not aligned with original titles.'),
 });
 
-export async function tailorTitles(previousResponseId: string, titles: Titles) {
+export async function tailorTitles(previousResponseId: string, cv: CV, jd: JD) {
   const systemPrompt = `
-Optimise the titles of the CV.
+You'll be given multiple possible titles for the CV.
+Choose the best 3 titles that match the job description.
+Optimise the chosen titles to make them more relevant to the job description.
+You can modify the titles but only based on profile and work achievements, maintain truthfulness.
+Give recommendations for the gaps and unconfirmed suggestions only for the titles, not for the CV as a whole.
+Keep language of the profile aligned with the job description language.
 
 Formatting:
 - Maximum 3 titles
 - Every title length can be maximum 30 characters
 - Every title is unique to further joining to a '|' separated string.
 - Do not use '—', prefer comma if needed.
+- Do not repeat terms across titles.
 `;
   return askStructured({
     previousResponseId,
     systemPrompt,
-    userPrompt: `Current titles: 
-${JSON.stringify(titles, null, 2)}`,
+    userPrompt: [
+      `The job description analysed:`,
+      JSON.stringify(jd.structured),
+      `The current original CV:`,
+      JSON.stringify(cv),
+      `The current titles:`,
+      JSON.stringify(cv.titles),
+    ],
     schema: OptimiseTitlesSchema,
+    model: 'gpt-5-mini',
+    stream: true,
     progress: 'status',
   });
 }
 
 const OptimiseProfileSchema = z.object({
-  relevanceScore: z.number(),
+  matchScorePct: MatchScoreSchema.describe(
+    'The match score of the original profile to the job description in percentage from 0 to 100.'
+  ),
   optimisedProfile: ProfileSchema,
+  gaps: z
+    .array(z.string())
+    .describe('What is missing from the profile to make it more relevant to the job description.'),
+  suggestions: z
+    .array(z.string())
+    .describe(
+      'Any unconfirmed suggestions that would work 100% for ATS parsing but not aligned with original profile.'
+    ),
+  atsPerfectMatch: z
+    .string()
+    .describe(
+      'The profile that would be ATS perfect match for the job description but might not be aligned with original profile.'
+    ),
 });
 
-export async function tailorProfile(previousResponseId: string, profile: Profile) {
+export async function tailorProfile(previousResponseId: string, cv: CV, jd: JD) {
   const systemPrompt = `
-Optimise the profile of the CV.
+You'll be given a profile for the CV, the CV itself and the Job Description.
+Optimise the profile of the CV based on the job description.
+You can modify the profile but only based on profile and work achievements, maintain truthfulness.
+Use the analysed job description to make the profile more relevant to the job description.
+Use ATS keywords, tech stack, and key requirements, and key skills to make the profile more relevant to the job description.
+Keep language of the profile aligned with the job description language.
 
 Formatting:
-- Maximum 550 characters
+- Maximum 700 characters
 `;
   return askStructured({
     previousResponseId,
     systemPrompt,
-    userPrompt: `Current profile: ${profile}`,
-    schema: OptimiseProfileSchema,
+    userPrompt: [
+      `The job description analysed:`,
+      JSON.stringify(jd.structured),
+      `The current original CV:`,
+      JSON.stringify(cv),
+      `The current profile:`,
+      JSON.stringify(cv.profile),
+    ],
+    stream: true,
     progress: 'status',
+    schema: OptimiseProfileSchema,
   });
 }
 
 const OptimiseWorkExperienceSchema = z.object({
-  relevanceScore: z.number().describe('The relevance score of the work experience to the job description.'),
+  matchScorePct: MatchScoreSchema.describe(
+    'The match score of the work experience to the job description in percentage from 0 to 100.'
+  ),
   optimisedAchievements: z.array(
     z.object({
-      relevanceScore: z.number().describe('The relevance score of the achievement to the job description.'),
+      matchScorePct: MatchScoreSchema.describe(
+        'The match score of the achievement to the job description in percentage from 0 to 100.'
+      ),
       optimisedAchievement: WorkExperienceAchievementSchema,
     })
   ),
   optimisedStack: z.array(
     z.object({
-      relevanceScore: z.number().describe('The relevance score of the stack item to the job description.'),
+      matchScorePct: MatchScoreSchema.describe(
+        'The match score of the stack item to the job description in percentage from 0 to 100.'
+      ),
       optimisedStack: WorkExperienceStackItemSchema,
     })
   ),
@@ -122,21 +190,18 @@ Optimise:
         systemPrompt,
         userPrompt: `Current work experience: ${JSON.stringify(work, null, 2)}`,
         schema: OptimiseWorkExperienceSchema,
-        progress: 'none',
       })
     )
   );
 }
 
-
-
-export async function tailorAll(originalCv: CV, jd: JD) {
+export async function tailorAll(cv: CV, jd: JD) {
   const seedResponseId = await seed(jd);
 
   const [titles, profile, workExperience] = await Promise.all([
-    tailorTitles(seedResponseId, originalCv.titles),
-    tailorProfile(seedResponseId, originalCv.profile),
-    tailorWorkExperience(seedResponseId, originalCv.work),
+    tailorTitles(seedResponseId, cv, jd),
+    tailorProfile(seedResponseId, cv, jd),
+    tailorWorkExperience(seedResponseId, cv.work),
   ]);
 
   return {
@@ -153,8 +218,13 @@ export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
   const mergedWorkExperience: WorkExperience[] = originalCv.work.map((work, index) => ({
     ...work,
     achievements:
-      tailoredCv.workExperience[index]?.optimisedAchievements.sort((a, b) => b.relevanceScore - a.relevanceScore).map((achievement) => achievement.optimisedAchievement) ?? [],
-    stack: tailoredCv.workExperience[index]?.optimisedStack.sort((a, b) => b.relevanceScore - a.relevanceScore).map((stack) => stack.optimisedStack) ?? [],
+      tailoredCv.workExperience[index]?.optimisedAchievements
+        .sort((a, b) => b.matchScorePct - a.matchScorePct)
+        .map((achievement) => achievement.optimisedAchievement) ?? [],
+    stack:
+      tailoredCv.workExperience[index]?.optimisedStack
+        .sort((a, b) => b.matchScorePct - a.matchScorePct)
+        .map((stack) => stack.optimisedStack) ?? [],
   }));
   return {
     ...originalCv,
@@ -173,6 +243,8 @@ const JDExctractionSchema = z.object({
   industryContext: z.string().describe('The industry context of the job and the company'),
   companyName: z.string().describe('The name of the company'),
   companyCountry: z.string().describe('The country of the company'),
+  language: z.enum(['EN_UK', 'EN_US', 'OTHER']).describe('The language of the job description'),
+  atsKeywords: z.array(z.string()).describe('The ATS keywords of the job that should be used to optimise the CV.'),
   atsType: z.enum([
     'greenhouse',
     'lever',
@@ -194,9 +266,14 @@ const JDExctractionSchema = z.object({
     'hibob',
     'rippling',
     'gusto',
-    'other'
+    'other',
   ]),
-  customAtsType: z.string().describe('If the ATS type is other, please specify the name of the ATS.').optional().nullable(),
+  customAtsType: z
+    .string()
+    .describe('If the ATS type is other, please specify the name of the ATS.')
+    .optional()
+    .nullable(),
+  toneNotes: z.string().describe('Any tone notes that should be used to optimise the CV.').optional().nullable(),
 });
 
 export type JD = {
@@ -206,12 +283,18 @@ export type JD = {
 };
 
 export async function jdExtract(jobDescription: string): Promise<JD> {
+  const systemPrompt = `
+You are an expert at structured data extraction of job descriptions. 
+You will be given semi-structured html text from a website representing a job description. 
+You will need to extract and convert into given structure. Do not modify the original text.
+`;
   const response = await askStructured({
-    systemPrompt:
-      'You are an expert at structured data extraction. You will be given semi-structured html text from a website representing a job description. You will need to extract and convert into given structure. Do not modify the original text.',
+    systemPrompt,
     userPrompt: jobDescription,
     schema: JDExctractionSchema,
+    stream: true,
     progress: 'raw',
+    model: 'gpt-5-nano',
   });
   return {
     structured: response,
