@@ -6,7 +6,7 @@ import {
   TitlesSchema,
   type WorkExperience,
   WorkExperienceAchievementSchema,
-  WorkExperienceStackItemSchema
+  WorkExperienceStackItemSchema,
 } from './cv';
 
 export async function seed(
@@ -58,8 +58,11 @@ const MatchScoreSchema = z
   .describe('The match score of the original CV to the job description in percentage from 0 to 100.');
 
 const OptimiseTitlesSchema = z.object({
-  matchScorePct: MatchScoreSchema.describe(
+  originalMatchScorePct: MatchScoreSchema.describe(
     'The match score of the original titles to the job description in percentage from 0 to 100.'
+  ),
+  optimisedMatchScorePct: MatchScoreSchema.describe(
+    'The match score of the optimised titles to the job description in percentage from 0 to 100.'
   ),
   optimisedTitles: TitlesSchema,
   gaps: z
@@ -70,7 +73,15 @@ const OptimiseTitlesSchema = z.object({
     .describe('Any unconfirmed suggestions that would work 100% for ATS parsing but not aligned with original titles.'),
 });
 
-export async function tailorTitles(previousResponseId: string, cv: CV, jd: JD) {
+export type TailoredTitles = z.infer<typeof OptimiseTitlesSchema>;
+export type TailoredTitlesResult = { responseId: string; response: TailoredTitles };
+
+export async function tailorTitles(
+  previousResponseId: string,
+  cv: CV,
+  jd: JD,
+  feedback?: string[]
+): Promise<TailoredTitlesResult> {
   const systemPrompt = `
 You'll be given multiple possible titles for the CV.
 Choose the best 3 titles that match the job description.
@@ -96,6 +107,7 @@ Formatting:
       JSON.stringify(cv),
       `The current titles:`,
       JSON.stringify(cv.titles),
+      ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
     ],
     schema: OptimiseTitlesSchema,
     model: 'gpt-5-mini',
@@ -124,7 +136,15 @@ const OptimiseProfileSchema = z.object({
     ),
 });
 
-export async function tailorProfile(previousResponseId: string, cv: CV, jd: JD) {
+export type TailoredProfile = z.infer<typeof OptimiseProfileSchema>;
+export type TailoredProfileResult = { responseId: string; response: TailoredProfile };
+
+export async function tailorProfile(
+  previousResponseId: string,
+  cv: CV,
+  jd: JD,
+  feedback?: string[]
+): Promise<TailoredProfileResult> {
   const systemPrompt = `
 You'll be given a profile for the CV, the CV itself and the Job Description.
 Optimise the profile of the CV based on the job description.
@@ -146,6 +166,7 @@ Formatting:
       JSON.stringify(cv),
       `The current profile:`,
       JSON.stringify(cv.profile),
+      ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
     ],
     stream: true,
     progress: 'status',
@@ -175,7 +196,13 @@ const OptimiseWorkExperienceSchema = z.object({
   ),
 });
 
-export async function tailorWorkExperience(previousResponseId: string, workExperience: WorkExperience[]) {
+export type TailoredWorkExperience = z.infer<typeof OptimiseWorkExperienceSchema>;
+export type TailoredWorkExperienceResult = { responseId: string; response: TailoredWorkExperience };
+
+export async function tailorWorkExperience(
+  previousResponseId: string,
+  workExperience: WorkExperience[]
+): Promise<TailoredWorkExperienceResult[]> {
   const systemPrompt = `
 Optimise the work experience of the CV.
 
@@ -212,7 +239,12 @@ export async function tailorAll(cv: CV, jd: JD) {
   };
 }
 
-export type TailoredCv = Awaited<ReturnType<typeof tailorAll>>;
+export type TailoredCv = {
+  titles: TailoredTitles;
+  profile: TailoredProfile;
+  workExperience: TailoredWorkExperience[];
+  createdAt: string;
+};
 
 export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
   const mergedWorkExperience: WorkExperience[] = originalCv.work.map((work, index) => ({
@@ -288,7 +320,7 @@ You are an expert at structured data extraction of job descriptions.
 You will be given semi-structured html text from a website representing a job description. 
 You will need to extract and convert into given structure. Do not modify the original text.
 `;
-  const response = await askStructured({
+  const { response } = await askStructured({
     systemPrompt,
     userPrompt: jobDescription,
     schema: JDExctractionSchema,

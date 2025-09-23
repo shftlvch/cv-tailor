@@ -4,6 +4,7 @@ import { log as l } from 'console';
 import { ZodError } from 'zod';
 import { codeToANSI } from '@shikijs/cli';
 import lu from 'log-update';
+import prompts from 'prompts';
 
 export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'nord') {
   return codeToANSI(src, 'json', theme);
@@ -17,12 +18,44 @@ export function intro() {
   const title = '✂︎ CV TAILOR ✂︎';
   const borderChar = '-';
   const fillChar = '-';
-  const length = 100;
+  const length = 60;
   l(`\n
 ${borderChar.repeat(length)}
-${fillChar.repeat(43)}${c.yellow(title)}${fillChar.repeat(44)}
+${fillChar.repeat(23)}${c.yellow(title)}${fillChar.repeat(24)}
 ${borderChar.repeat(length)}`);
   l('\n');
+}
+
+export async function repl<
+  TFn extends (args: { prevResult?: any; feedback?: string[] }) => Promise<any>
+>(
+  fn: TFn,
+  print: (result: Awaited<ReturnType<TFn>>) => void
+): Promise<Awaited<ReturnType<TFn>> | null> {
+  const feedback: string[] = [];
+  let result: Awaited<ReturnType<TFn>>;
+  
+  result = await fn({ feedback: undefined });
+  print(result);
+  
+  while (true) {
+    const prompt = await prompts({
+      type: 'text',
+      name: 'input',
+      message: 'Add follow-up, type "y" to continue or "n" to exit.',
+      initial: 'y',
+    });
+    
+    if (prompt.input === 'y') {
+      return result;
+    } else if (prompt.input === 'n') {
+      return null;
+    } else {
+      feedback.push(prompt.input);
+      result = await fn({ prevResult: result, feedback });
+      print(result);
+    }
+  }
 }
 
 export function wip(message: string, icon: string = '✂︎') {

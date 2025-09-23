@@ -41,8 +41,11 @@ export const createChat = async (opts: { systemPrompt: string; userPrompt: strin
   return seedResponse.id;
 };
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-async function processStream<T extends z.ZodType<any, z.ZodTypeDef, any>>(stream: ResponseStream<z.TypeOf<T>>, opts: { progress?: 'none' | 'status' | 'raw' }) {
+async function processStream<T extends UnknownZodType>(
+  stream: ResponseStream<z.TypeOf<T>>,
+  opts: { progress?: 'none' | 'status' | 'raw' }
+) {
+  let processingTimeout: NodeJS.Timeout | null = null;
   let outputBuffer = '';
   const spinner = ora(opts.progress === 'none' ? undefined : 'Starting...');
   for await (const event of stream) {
@@ -54,6 +57,12 @@ async function processStream<T extends z.ZodType<any, z.ZodTypeDef, any>>(stream
         break;
       }
       case 'response.output_text.delta': {
+        // Throw timeout if processing frozen for more than 60 seconds, looks like Bun/Network/OpenAI issue
+        if (!processingTimeout) {
+          processingTimeout = setTimeout(() => {
+            throw new Error('Processing timeout exceeded');
+          }, 60e3);
+        }
         if (opts.progress === 'status') {
           spinner.start('Processing...');
         } else if (opts.progress === 'raw') {
@@ -70,6 +79,7 @@ async function processStream<T extends z.ZodType<any, z.ZodTypeDef, any>>(stream
       }
     }
   }
+  processingTimeout && clearTimeout(processingTimeout);
   return stream.finalResponse();
 }
 
@@ -144,6 +154,11 @@ async function createResponseStream<T extends UnknownZodType>(opts: CreateRespon
 }
 
 export async function askStructured<T extends UnknownZodType>(opts: AskStructuredOpts<T>) {
-  const response = opts.stream ? await processStream(await createResponseStream<T>(opts), { progress: opts.progress }) : await createResponse<T>(opts);
-  return processResponse(response, opts.schema);
+  const response = opts.stream
+    ? await processStream(await createResponseStream<T>(opts), { progress: opts.progress })
+    : await createResponse<T>(opts);
+  return {
+    responseId: response.id,
+    response: processResponse(response, opts.schema),
+  };
 }
