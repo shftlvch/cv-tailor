@@ -45,7 +45,6 @@ async function processStream<T extends UnknownZodType>(
   stream: ResponseStream<z.TypeOf<T>>,
   opts: { progress?: 'none' | 'status' | 'raw' }
 ) {
-  let processingTimeout: NodeJS.Timeout | null = null;
   let outputBuffer = '';
   const spinner = ora(opts.progress === 'none' ? undefined : 'Starting...');
   for await (const event of stream) {
@@ -57,12 +56,6 @@ async function processStream<T extends UnknownZodType>(
         break;
       }
       case 'response.output_text.delta': {
-        // Throw timeout if processing frozen for more than 60 seconds, looks like Bun/Network/OpenAI issue
-        if (!processingTimeout) {
-          processingTimeout = setTimeout(() => {
-            throw new Error('Processing timeout exceeded');
-          }, 60e3);
-        }
         if (opts.progress === 'status') {
           spinner.start('Processing...');
         } else if (opts.progress === 'raw') {
@@ -79,7 +72,6 @@ async function processStream<T extends UnknownZodType>(
       }
     }
   }
-  processingTimeout && clearTimeout(processingTimeout);
   return stream.finalResponse();
 }
 

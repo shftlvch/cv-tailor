@@ -69,7 +69,6 @@ export type Extras = z.infer<typeof ExtrasSchema>;
 
 export async function loadCV(path: string) {
   const content = await file(path).text();
-  /** @ts-expect-error (Bun.YAML is not typed yet) */
   const cvRaw = Bun.YAML.parse(content);
   return CVSchema.parse(cvRaw);
 }

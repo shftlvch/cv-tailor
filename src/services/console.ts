@@ -30,14 +30,17 @@ export async function repl<
   TFn extends (args: { prevResult?: any; feedback?: string[] }) => Promise<any>
 >(
   fn: TFn,
-  print: (result: Awaited<ReturnType<TFn>>) => void
+  print: (result: Awaited<ReturnType<TFn>>) => void,
+  accept: boolean = false
 ): Promise<Awaited<ReturnType<TFn>> | null> {
   const feedback: string[] = [];
   let result: Awaited<ReturnType<TFn>>;
   
   result = await fn({ feedback: undefined });
   print(result);
-  
+  if (accept) {
+    return result;
+  }
   while (true) {
     const prompt = await prompts({
       type: 'text',

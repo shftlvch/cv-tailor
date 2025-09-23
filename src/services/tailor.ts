@@ -103,9 +103,9 @@ Formatting:
     userPrompt: [
       `The job description analysed:`,
       JSON.stringify(jd.structured),
-      `The current original CV:`,
+      `Original CV:`,
       JSON.stringify(cv),
-      `The current titles:`,
+      `Titles from the original CV:`,
       JSON.stringify(cv.titles),
       ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
     ],
@@ -117,8 +117,11 @@ Formatting:
 }
 
 const OptimiseProfileSchema = z.object({
-  matchScorePct: MatchScoreSchema.describe(
+  originalMatchScorePct: MatchScoreSchema.describe(
     'The match score of the original profile to the job description in percentage from 0 to 100.'
+  ),
+  optimisedMatchScorePct: MatchScoreSchema.describe(
+    'The match score of the optimised profile to the job description in percentage from 0 to 100.'
   ),
   optimisedProfile: ProfileSchema,
   gaps: z
@@ -162,9 +165,9 @@ Formatting:
     userPrompt: [
       `The job description analysed:`,
       JSON.stringify(jd.structured),
-      `The current original CV:`,
+      `Original CV:`,
       JSON.stringify(cv),
-      `The current profile:`,
+      `Profile from the original CV:`,
       JSON.stringify(cv.profile),
       ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
     ],
@@ -175,8 +178,11 @@ Formatting:
 }
 
 const OptimiseWorkExperienceSchema = z.object({
-  matchScorePct: MatchScoreSchema.describe(
-    'The match score of the work experience to the job description in percentage from 0 to 100.'
+  originalMatchScorePct: MatchScoreSchema.describe(
+    'The match score of the original work experience to the job description in percentage from 0 to 100.'
+  ),
+  optimisedMatchScorePct: MatchScoreSchema.describe(
+    'The match score of the optimised work experience to the job description in percentage from 0 to 100.'
   ),
   optimisedAchievements: z.array(
     z.object({
@@ -201,21 +207,36 @@ export type TailoredWorkExperienceResult = { responseId: string; response: Tailo
 
 export async function tailorWorkExperience(
   previousResponseId: string,
-  workExperience: WorkExperience[]
+  cv: CV,
+  jd: JD,
+  feedback?: string[]
 ): Promise<TailoredWorkExperienceResult[]> {
   const systemPrompt = `
-Optimise the work experience of the CV.
+You'll be given a work experience for the CV, the CV itself and the Job Description.
+Optimise the work experience of the original CV based on the job description analysis.
+You can modify the work experience but only based on work experience and work achievements, maintain truthfulness.
+Use the analysed job description to make the work experience more relevant to the job description.
+Use ATS keywords, tech stack, and key requirements, and key skills to make the work experience more relevant to the job description.
+Keep language of the profile aligned with the job description language.
 
 Optimise:
 1. Achievements: 150 characters max each
 2. Stack: 18 characters max each, one term per item. Example: Wrong: "AWS (CDK, Lambda)", Correct: "AWS", "CDK", "Lambda"
 `;
   return Promise.all(
-    workExperience.map((work) =>
+    cv.work.map((work) =>
       askStructured({
         previousResponseId,
         systemPrompt,
-        userPrompt: `Current work experience: ${JSON.stringify(work, null, 2)}`,
+        userPrompt: [
+          `The job description analysed:`,
+          JSON.stringify(jd.structured),
+          `Original complete CV:`,
+          JSON.stringify(cv),
+          `Work experience you should optimise from the original CV:`,
+          JSON.stringify(work),
+          ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
+        ],
         schema: OptimiseWorkExperienceSchema,
       })
     )
@@ -228,7 +249,7 @@ export async function tailorAll(cv: CV, jd: JD) {
   const [titles, profile, workExperience] = await Promise.all([
     tailorTitles(seedResponseId, cv, jd),
     tailorProfile(seedResponseId, cv, jd),
-    tailorWorkExperience(seedResponseId, cv.work),
+    tailorWorkExperience(seedResponseId, cv, jd),
   ]);
 
   return {
@@ -266,6 +287,50 @@ export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
   };
 }
 
+export const MAX_SHRINK_ATTEMPTS = 16;
+const MIN_ACHIEVEMENTS_TO_PRESERVE = 2;
+export function shrink(cv: CV, attempt: number): CV {
+  if (attempt === 0) {
+    return cv;
+  }
+  const hasSecondaryAchievementsToShrink = cv.work.reduce(
+    (acc, work, index) => acc + (work.achievements.length > MIN_ACHIEVEMENTS_TO_PRESERVE && index > 0 ? 1 : 0),
+    0
+  );
+
+  if (hasSecondaryAchievementsToShrink) {
+    // Remove 1 achievement from each work experience except the first one, if there is more than 2 achievements
+    return {
+      ...cv,
+      work: cv.work.map((work, index) => ({
+        ...work,
+        achievements:
+          index === 0
+            ? work.achievements
+            : work.achievements.length > MIN_ACHIEVEMENTS_TO_PRESERVE
+              ? work.achievements.slice(0, -1)
+              : work.achievements,
+      })),
+    };
+  }
+  if (attempt < MAX_SHRINK_ATTEMPTS) {
+    // Remove last 1 achievement from the first work experience, if there is more than 2 achievements
+    return {
+      ...cv,
+      work: cv.work.map((work, index) => ({
+        ...work,
+        achievements:
+          index === 0
+            ? work.achievements.length > 2
+              ? work.achievements.slice(0, -1)
+              : work.achievements
+            : work.achievements,
+      })),
+    };
+  }
+  throw new Error(`Attempt to shrink CV exceeded ${MAX_SHRINK_ATTEMPTS} attempts`);
+}
+
 const JDExctractionSchema = z.object({
   jobTitle: z.string().describe('The title of the job'),
   jobDescription: z.string().describe('The description of the job'),
@@ -275,6 +340,8 @@ const JDExctractionSchema = z.object({
   industryContext: z.string().describe('The industry context of the job and the company'),
   companyName: z.string().describe('The name of the company'),
   companyCountry: z.string().describe('The country of the company'),
+  officeCountry: z.string().describe('The office country of the job'),
+  location: z.string().describe('The location of the job'),
   language: z.enum(['EN_UK', 'EN_US', 'OTHER']).describe('The language of the job description'),
   atsKeywords: z.array(z.string()).describe('The ATS keywords of the job that should be used to optimise the CV.'),
   atsType: z.enum([
@@ -324,9 +391,9 @@ You will need to extract and convert into given structure. Do not modify the ori
     systemPrompt,
     userPrompt: jobDescription,
     schema: JDExctractionSchema,
+    model: 'gpt-5',
     stream: true,
-    progress: 'raw',
-    model: 'gpt-5-nano',
+    progress: 'status',
   });
   return {
     structured: response,
