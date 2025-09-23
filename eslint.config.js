@@ -28,6 +28,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
+      '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
     },
   },
   // Unicorn
