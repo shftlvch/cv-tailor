@@ -2,21 +2,14 @@
 import { A4_HEIGHT_PX, A4_WIDTH_PX, createBrowser, getPageInfo } from '@/services/browser';
 import { c, formatZodError, intro, l, li, printDiff, repl, success, wip } from '@/services/console';
 import { loadCV, type CV } from '@/services/cv';
-import { write } from '@/services/io';
+import { generateFileName, write } from '@/services/io';
+import { jdExtract, type JD } from '@/services/jd';
+import { merge } from '@/services/merger';
 import { scrapeUrl } from '@/services/scraper';
+import { MAX_SHRINK_ATTEMPTS, shrink } from '@/services/shrinker';
 import { generateInlinedHTML } from '@/services/ssg';
-import {
-  jdExtract,
-  MAX_SHRINK_ATTEMPTS,
-  merge,
-  seed,
-  shrink,
-  tailorProfile,
-  tailorTitles,
-  tailorWorkExperience,
-  type JD,
-  type TailoredCv,
-} from '@/services/tailor';
+import { seed, tailorProfile, tailorTitles, tailorWorkExperience, type TailoredCv } from '@/services/tailor';
+import { tinkerAll } from '@/services/tinker';
 import { file } from 'bun';
 import { error as e } from 'console';
 import ora from 'ora';
@@ -28,33 +21,65 @@ import { ZodError } from 'zod';
 const { values: opts } = parseArgs({
   args: Bun.argv,
   options: {
+    /**
+     * CV file name to load and tailor to the job description/tinker with a custom prompt
+     */
     cv: {
       type: 'string',
       default: 'cv.yaml',
     },
+    /**
+     * Visualise scraping (will open the browser and show the scraping process)
+     */
     visualiseScraping: {
       type: 'boolean',
       default: false,
     },
+    /**
+     * Already extracted Job description file name
+     */
     jd: {
       type: 'string',
     },
+    /**
+     * Job description URL
+     */
     jdUrl: {
       type: 'string',
     },
+    /**
+     * Output file name
+     */
     out: {
       type: 'string',
     },
-    generateOnly: {
-      type: 'boolean',
-    },
+
+    /**
+     * Allow multipage CV: don't shrink the CV if it exceeds one page
+     */
     allowMultipage: {
       type: 'boolean',
       default: false,
     },
+    /**
+     * Accept all feedback automatically
+     */
     acceptAll: {
       type: 'boolean',
       default: false,
+    },
+    /**
+     * Only generate the CV, don't tailor it to the job description
+     */
+    skipTailoring: {
+      type: 'boolean',
+      default: false,
+    },
+    /**
+     * Optimise CV with a custom prompt submitted as a markdown file
+     */
+    optimisePrompt: {
+      type: 'string',
     },
   },
   strict: true,
@@ -66,9 +91,7 @@ intro();
 const spinner = ora();
 
 /**
- *
  * Load CV
- *
  */
 spinner.start('Loading CV');
 let cv: CV | null = null;
@@ -89,7 +112,7 @@ spinner.succeed('CV loaded');
 
 let tailoredCv: TailoredCv | null = null;
 
-if (!opts.generateOnly) {
+if (!opts.skipTailoring) {
   /**
    *
    * Load Job Description
@@ -150,7 +173,7 @@ if (!opts.generateOnly) {
 
   /**
    *
-   * Optimize CV
+   * Optimise CV
    *
    */
   if (!jd) {
@@ -274,20 +297,36 @@ if (!opts.generateOnly) {
 
 /**
  * Merge CV and Tailored CV
- *
  */
-const mergedCv = tailoredCv ? merge(cv, tailoredCv) : cv;
+let mergedCv = tailoredCv ? merge(cv, tailoredCv) : cv;
 const outName =
   opts.out ||
   (!jd
     ? `cv-${cv.name}-${cv.titles[0]}`
     : `cv-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}`);
+
+/**
+ * Optimise CV with a custom prompt if provided
+ */
+if (opts.optimisePrompt) {
+  spinner.start('Optimizing generated CV with custom prompt');
+  const prompt = await file(opts.optimisePrompt).text();
+  if (!prompt) {
+    spinner.fail('Custom prompt file not found');
+    process.exit(1);
+  }
+  const tikerResult = await tinkerAll(cv, prompt);
+  mergedCv = merge(mergedCv, tikerResult);
+  spinner.succeed('CV optimised with custom prompt');
+}
+
+/**
+ * Save CV to yaml for further editing
+ */
 await write(outName, 'yaml', mergedCv);
 
 /**
- *
- * Generate template and save as pdf
- *
+ * Generate template and save as pdf shrinking the CV if it exceeds one page when needed
  */
 let page: Page | null = null;
 const browser = await createBrowser();
@@ -307,9 +346,7 @@ for (let tryCount = 0; tryCount < MAX_SHRINK_ATTEMPTS; tryCount++) {
   });
   await page.setContent(html, { waitUntil: 'load' });
 
-  // Check if content exceeds one A4 page
   const pageInfo = await getPageInfo(page);
-
   if (pageInfo.exceedsOnePage) {
     if (opts.allowMultipage) {
       spinner.warn(
@@ -322,7 +359,9 @@ for (let tryCount = 0; tryCount < MAX_SHRINK_ATTEMPTS; tryCount++) {
   }
   await page.close();
   spinner.info(
-    `CV spans ${pageInfo.numberOfPages} pages, height: ${pageInfo.contentHeight}px, max: ${pageInfo.usableHeight}px. Shrinking CV (attempt ${tryCount + 1})`
+    `CV spans ${pageInfo.numberOfPages} pages, height: ${pageInfo.contentHeight}px, max: ${
+      pageInfo.usableHeight
+    }px. Shrinking CV (attempt ${tryCount + 1})`
   );
 }
 
@@ -331,8 +370,13 @@ if (!page || page.isClosed()) {
   process.exit(1);
 }
 
+let pdfPath = `${generateFileName(outName)}.pdf`;
+if (await file(pdfPath).exists()) {
+  pdfPath = `${generateFileName(`${outName}-${new Date().toISOString()}`)}.pdf`;
+}
+
 await page.pdf({
-  path: `${outName}.pdf`,
+  path: pdfPath,
   format: 'A4',
   printBackground: true,
   margin: { top: '12mm', right: '12mm', bottom: '14mm', left: '12mm' },

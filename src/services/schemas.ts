@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { ProfileSchema, TitlesSchema, WorkExperienceSchema } from './cv';
 
+export const MatchScoreSchema = z
+  .number()
+  .min(0)
+  .max(100)
+  .describe('The match score of the original CV to the job description in percentage from 0 to 100.');
+
 // Base enums and types
 export const ImportanceEnum = z.enum(['critical', 'important', 'preferred']);
 export const CategoryEnum = z.enum(['technical', 'soft', 'industry', 'certification']);

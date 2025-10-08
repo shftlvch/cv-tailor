@@ -4,10 +4,11 @@ import {
   type CV,
   ProfileSchema,
   TitlesSchema,
-  type WorkExperience,
   WorkExperienceAchievementSchema,
   WorkExperienceStackItemSchema,
 } from './cv';
+import { MatchScoreSchema } from './schemas';
+import type { JD } from './jd';
 
 export async function seed(
   jd: JD,
@@ -20,7 +21,7 @@ export async function seed(
   const { language = 'EN_UK', tone = 'Professional' } = options ?? {};
 
   const systemPrompt = `
-You are a CV optimizer. Keep facts honest; do not invent. 
+You are a CV optimiser. Keep facts honest; do not invent. 
 Prefer metrics, action verbs, and ATS-friendly phrasing.
 
 Guidelines:
@@ -50,12 +51,6 @@ ${jd.structured}
     userPrompt,
   });
 }
-
-const MatchScoreSchema = z
-  .number()
-  .min(0)
-  .max(100)
-  .describe('The match score of the original CV to the job description in percentage from 0 to 100.');
 
 const OptimiseTitlesSchema = z.object({
   originalMatchScorePct: MatchScoreSchema.describe(
@@ -266,138 +261,3 @@ export type TailoredCv = {
   workExperience: TailoredWorkExperience[];
   createdAt: string;
 };
-
-export function merge(originalCv: CV, tailoredCv: TailoredCv): CV {
-  const mergedWorkExperience: WorkExperience[] = originalCv.work.map((work, index) => ({
-    ...work,
-    achievements:
-      tailoredCv.workExperience[index]?.optimisedAchievements
-        .sort((a, b) => b.matchScorePct - a.matchScorePct)
-        .map((achievement) => achievement.optimisedAchievement) ?? [],
-    stack:
-      tailoredCv.workExperience[index]?.optimisedStack
-        .sort((a, b) => b.matchScorePct - a.matchScorePct)
-        .map((stack) => stack.optimisedStack) ?? [],
-  }));
-  return {
-    ...originalCv,
-    titles: tailoredCv.titles.optimisedTitles,
-    profile: tailoredCv.profile.optimisedProfile,
-    work: mergedWorkExperience,
-  };
-}
-
-export const MAX_SHRINK_ATTEMPTS = 16;
-const MIN_ACHIEVEMENTS_TO_PRESERVE = 2;
-export function shrink(cv: CV, attempt: number): CV {
-  if (attempt === 0) {
-    return cv;
-  }
-  const hasSecondaryAchievementsToShrink = cv.work.reduce(
-    (acc, work, index) => acc + (work.achievements.length > MIN_ACHIEVEMENTS_TO_PRESERVE && index > 0 ? 1 : 0),
-    0
-  );
-
-  if (hasSecondaryAchievementsToShrink) {
-    // Remove 1 achievement from each work experience except the first one, if there is more than 2 achievements
-    return {
-      ...cv,
-      work: cv.work.map((work, index) => ({
-        ...work,
-        achievements:
-          index === 0
-            ? work.achievements
-            : work.achievements.length > MIN_ACHIEVEMENTS_TO_PRESERVE
-              ? work.achievements.slice(0, -1)
-              : work.achievements,
-      })),
-    };
-  }
-  if (attempt < MAX_SHRINK_ATTEMPTS) {
-    // Remove last 1 achievement from the first work experience, if there is more than 2 achievements
-    return {
-      ...cv,
-      work: cv.work.map((work, index) => ({
-        ...work,
-        achievements:
-          index === 0
-            ? work.achievements.length > 2
-              ? work.achievements.slice(0, -1)
-              : work.achievements
-            : work.achievements,
-      })),
-    };
-  }
-  throw new Error(`Attempt to shrink CV exceeded ${MAX_SHRINK_ATTEMPTS} attempts`);
-}
-
-const JDExctractionSchema = z.object({
-  jobTitle: z.string().describe('The title of the job'),
-  jobDescription: z.string().describe('The description of the job'),
-  techStack: z.array(z.string()).describe('The tech stack of the job'),
-  keyRequirements: z.array(z.string()).describe('The key requirements of the job'),
-  keySkills: z.array(z.string()).describe('The key skills of the job'),
-  industryContext: z.string().describe('The industry context of the job and the company'),
-  companyName: z.string().describe('The name of the company'),
-  companyCountry: z.string().describe('The country of the company'),
-  officeCountry: z.string().describe('The office country of the job'),
-  location: z.string().describe('The location of the job'),
-  language: z.enum(['EN_UK', 'EN_US', 'OTHER']).describe('The language of the job description'),
-  atsKeywords: z.array(z.string()).describe('The ATS keywords of the job that should be used to optimise the CV.'),
-  atsType: z.enum([
-    'greenhouse',
-    'lever',
-    'workable',
-    'indeed',
-    'ziprecruiter',
-    'bamboohr',
-    'icims',
-    'taleo',
-    'adp',
-    'smartrecruiters',
-    'bullhorn',
-    'jazzhr',
-    'breezyhr',
-    'recruitee',
-    'ashby',
-    'jobvite',
-    'successfactors',
-    'hibob',
-    'rippling',
-    'gusto',
-    'other',
-  ]),
-  customAtsType: z
-    .string()
-    .describe('If the ATS type is other, please specify the name of the ATS.')
-    .optional()
-    .nullable(),
-  toneNotes: z.string().describe('Any tone notes that should be used to optimise the CV.').optional().nullable(),
-});
-
-export type JD = {
-  structured: z.infer<typeof JDExctractionSchema>;
-  raw: string;
-  createdAt: string;
-};
-
-export async function jdExtract(jobDescription: string): Promise<JD> {
-  const systemPrompt = `
-You are an expert at structured data extraction of job descriptions. 
-You will be given semi-structured html text from a website representing a job description. 
-You will need to extract and convert into given structure. Do not modify the original text.
-`;
-  const { response } = await askStructured({
-    systemPrompt,
-    userPrompt: jobDescription,
-    schema: JDExctractionSchema,
-    model: 'o3',
-    stream: true,
-    progress: 'reasoning',
-  });
-  return {
-    structured: response,
-    raw: jobDescription,
-    createdAt: new Date().toISOString(),
-  };
-}
