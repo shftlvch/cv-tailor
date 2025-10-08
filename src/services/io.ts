@@ -3,7 +3,10 @@ import { write as writeFile } from 'bun';
 const TMP_DIR = './.tmp';
 
 export function generateFileName(input: string) {
-  return `${input.toLowerCase().replace(/[^a-zA-Z0-9:-]/g, '-').replace(/-+/g, '-')}`;
+  return `${input
+    .toLowerCase()
+    .replace(/[^a-zA-Z0-9:-]/g, '-')
+    .replace(/-+/g, '-')}`;
 }
 
 export async function write(
@@ -19,4 +22,14 @@ export async function write(
     fileContent = Bun.YAML.stringify(data, null, 2);
   }
   return writeFile(`${tmp ? `${TMP_DIR}/` : ''}${generateFileName(filename)}.${format}`, fileContent);
+}
+
+
+const LOG_FILE = `${TMP_DIR}/log.log`;
+const logFile = Bun.file(LOG_FILE);
+const logWriter = logFile.writer();
+
+export function logToFile(level: 'debug' | 'info' | 'warn' | 'error', message: string, data: unknown) {
+  logWriter.write(`[${level}] ${message} ${JSON.stringify(data, null, 2)}\n`, );
+  logWriter.flush();
 }
