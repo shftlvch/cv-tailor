@@ -3,6 +3,8 @@ import { loadCV } from '@/services/cv';
 import { generateCSS, generateHTML } from '@/services/ssg';
 import { serve } from 'bun';
 
+const DEFAULT_CV_PATH = 'cv.yaml';
+
 const server = serve({
   port: 5173,
   async fetch(req) {
@@ -15,7 +17,7 @@ const server = serve({
       });
     }
 
-    const cv = await loadCV();
+    const cv = await loadCV(DEFAULT_CV_PATH);
     const html = await generateHTML({ cv, mode: 'preview' });
     return new Response(html, {
       headers: {
