@@ -1,13 +1,29 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { codeToANSI } from '@shikijs/cli';
 import c from 'chalk';
 import { log as l } from 'console';
-import { ZodError } from 'zod';
-import { codeToANSI } from '@shikijs/cli';
 import lu from 'log-update';
+import { marked } from 'marked';
 import prompts from 'prompts';
+import { ZodError } from 'zod';
+import chalk from 'chalk';
+// @ts-expect-error no types
+import { markedTerminal } from 'marked-terminal';
+
+marked.use(markedTerminal({
+  reflowText: true,
+  lineWidth: 80,
+  heading: chalk.gray.bold,
+  firstHeading: chalk.gray.bold,
+  paragraph: chalk.gray
+}));
 
 export async function formatJson(src: string, theme: 'nord' | 'github-dark' = 'nord') {
   return codeToANSI(src, 'json', theme);
+}
+
+export function formatMd(src: string) {
+  return marked(src);
 }
 
 function li(message: string) {
@@ -26,16 +42,14 @@ ${borderChar.repeat(length)}`);
   l('\n');
 }
 
-export async function repl<
-  TFn extends (args: { prevResult?: any; feedback?: string[] }) => Promise<any>
->(
+export async function repl<TFn extends (args: { prevResult?: any; feedback?: string[] }) => Promise<any>>(
   fn: TFn,
   print: (result: Awaited<ReturnType<TFn>>) => void,
   accept: boolean = false
 ): Promise<Awaited<ReturnType<TFn>> | null> {
   const feedback: string[] = [];
   let result: Awaited<ReturnType<TFn>>;
-  
+
   result = await fn({ feedback: undefined });
   print(result);
   if (accept) {
@@ -48,7 +62,7 @@ export async function repl<
       message: 'Add follow-up, type "y" to continue or "n" to exit.',
       initial: 'y',
     });
-    
+
     if (prompt.input === 'y') {
       return result;
     } else if (prompt.input === 'n') {
@@ -61,11 +75,27 @@ export async function repl<
   }
 }
 
-export function wip(message: string, icon: string = '✂︎') {
+const statusMap = new Map<string, number>();
+
+export function wip(message: string, id?: string, icon: string = '✂︎') {
+  if (id) {
+    const ts = performance.now();
+    statusMap.set(id, ts);
+  }
   l(c.yellow(`${icon}`), `${message}`);
 }
-export function success(message: string, icon: string = '✔') {
-  l(c.green(`${icon}`), `${message}`);
+export function success(message: string, id?: string, icon: string = '✔') {
+  let durationInSeconds = 0;
+  if (id) {
+    const ts = performance.now();
+    const startTs = statusMap.get(id);
+    if (startTs) {
+      const duration = ts - startTs;
+      durationInSeconds = duration / 1000;
+      statusMap.delete(id);
+    }
+  }
+  l(c.green(`${icon}`), `${message}`, durationInSeconds ? c.gray(`  [${durationInSeconds.toFixed(2)}s]`) : '');
 }
 
 export function printDiff(title: string, a: string, b: string) {
@@ -167,4 +197,5 @@ export function formatZodErrorJson(error: ZodError): string {
   return JSON.stringify(formatted, null, 2);
 }
 
-export { lu, l, li, c };
+export { c, l, li, lu };
+

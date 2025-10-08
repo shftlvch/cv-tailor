@@ -142,10 +142,10 @@ if (!opts.generateOnly) {
       }
     }
 
-    wip('Extracting job description (this may take a while)');
+    wip('Extracting job description (this may take a while)', 'jd-extract');
     jd = await jdExtract(jdRaw);
     await write(`jd-${jd.structured.jobTitle}-at-${jd.structured.companyName}-${jd.createdAt}`, 'json', jd, true);
-    success('Job description extracted');
+    success('Job description extracted', 'jd-extract');
   }
 
   /**
@@ -157,18 +157,18 @@ if (!opts.generateOnly) {
     spinner.fail('No job description provided');
     throw new Error('No job description provided');
   }
-  wip('Seeding');
+  wip('Seeding', 'seed');
   const seedResponse = await seed(jd);
-  success('Seeded');
+  success('Seeded', 'seed');
 
-  wip('Optimizing Titles');
+  wip('Optimizing Titles', 'titles');
   const titlesReplResult = await repl(
     async ({ prevResult, feedback }) => {
       const prevResponseId = prevResult?.responseId || seedResponse;
       return tailorTitles(prevResponseId, cv, jd!, feedback);
     },
     ({ response }) => {
-      success('Titles optimised');
+      success('Titles optimised', 'titles');
 
       printDiff(
         `Titles: (match: ${response.originalMatchScorePct} → ${response.optimisedMatchScorePct})`,
@@ -189,14 +189,14 @@ if (!opts.generateOnly) {
     process.exit(1);
   }
 
-  wip('Optimizing Profile');
+  wip('Optimizing Profile', 'profile');
   const profileReplResult = await repl(
     async ({ prevResult, feedback }) => {
       const prevResponseId = prevResult?.responseId || seedResponse;
       return await tailorProfile(prevResponseId, cv, jd!, feedback);
     },
     (result) => {
-      success('Profile optimised');
+      success('Profile optimised', 'profile');
 
       printDiff(
         `Profile: (match: ${result.response.originalMatchScorePct} → ${result.response.optimisedMatchScorePct})`,
@@ -220,14 +220,14 @@ if (!opts.generateOnly) {
     process.exit(1);
   }
 
-  wip('Optimizing Work Experience');
+  wip('Optimizing Work Experience', 'we');
   const tailoredWorkExperienceReplResult = await repl(
     async ({ prevResult, feedback }) => {
       const prevResponseId = prevResult?.responseId || seedResponse;
       return await tailorWorkExperience(prevResponseId, cv, jd!, feedback);
     },
     (responses) => {
-      success('Work Experience optimised');
+      success('Work Experience optimised', 'we');
 
       for (let i = 0; i < responses.length; i++) {
         const response = responses[i];
