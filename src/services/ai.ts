@@ -4,15 +4,31 @@ import type { ResponseStream } from 'openai/lib/responses/ResponseStream';
 import type { ResponsesModel } from 'openai/resources';
 import ora from 'ora';
 import type z from 'zod';
-import { formatJson, lu } from './console';
+import { formatJson, formatMd, lu } from './console';
+import { logToFile } from './io';
 
 const DEFAULT_MODEL: ResponsesModel = 'gpt-5-mini';
 
 const createAiClient = () => {
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 120000, // 120 seconds timeout
+    timeout: 240e3, // 4 minutes timeout
     maxRetries: 3, // Retry failed requests up to 3 times
+    logLevel: 'debug',
+    logger: {
+      debug: (message: string, ...data: unknown[]) => {
+        logToFile('debug', message, data);
+      },
+      info: (message: string, ...data: unknown[]) => {
+        logToFile('info', message, data);
+      },
+      warn: (message: string, ...data: unknown[]) => {
+        logToFile('warn', message, data);
+      },
+      error: (message: string, ...data: unknown[]) => {
+        logToFile('error', message, data);
+      },
+    },
   });
 };
 
@@ -43,10 +59,14 @@ export const createChat = async (opts: { systemPrompt: string; userPrompt: strin
 
 async function processStream<T extends UnknownZodType>(
   stream: ResponseStream<z.TypeOf<T>>,
-  opts: { progress?: 'none' | 'status' | 'raw' }
+  opts: { progress?: 'none' | 'status' | 'raw' | 'reasoning' }
 ) {
   let outputBuffer = '';
-  const spinner = ora(opts.progress === 'none' ? undefined : 'Starting...');
+  let reasoningBuffer = '';
+  const spinner = ora();
+  if (opts.progress !== 'none') {
+    spinner.start('Starting...');
+  }
   for await (const event of stream) {
     switch (event.type) {
       case 'response.in_progress': {
@@ -55,8 +75,16 @@ async function processStream<T extends UnknownZodType>(
         }
         break;
       }
+      case 'response.reasoning_summary_text.delta': {
+        reasoningBuffer += event.delta;
+        if (opts.progress === 'reasoning') {
+          spinner.stop();
+          lu(await formatMd(reasoningBuffer));
+        }
+        break;
+      }
       case 'response.output_text.delta': {
-        if (opts.progress === 'status') {
+        if (opts.progress === 'status' || opts.progress === 'reasoning') {
           spinner.start('Processing...');
         } else if (opts.progress === 'raw') {
           spinner.stop();
@@ -66,8 +94,15 @@ async function processStream<T extends UnknownZodType>(
         break;
       }
       case 'response.completed': {
-        lu.done();
+        lu.clear();
         spinner.succeed('Done');
+        break;
+      }
+      case 'error':
+      case 'response.failed': {
+        event.type === 'error'
+          ? spinner.fail(`Error ${event.message}`)
+          : spinner.fail(`Failed ${event.response?.error?.message || 'Unknown error'}`);
         break;
       }
     }
@@ -96,14 +131,14 @@ type CreateResponseOpts<T extends UnknownZodType> = {
 };
 type AskStructuredOpts<T extends UnknownZodType> = CreateResponseOpts<T> & {
   stream?: boolean;
-  progress?: 'none' | 'status' | 'raw';
+  progress?: 'none' | 'status' | 'raw' | 'reasoning';
 };
 
 async function createResponse<T extends UnknownZodType>(opts: CreateResponseOpts<T>) {
   return ai.responses.create({
     model: opts.model ?? DEFAULT_MODEL,
+    instructions: opts.systemPrompt,
     input: [
-      { role: 'system', content: opts.systemPrompt },
       {
         role: 'user',
         content: Array.isArray(opts.userPrompt)
@@ -117,6 +152,10 @@ async function createResponse<T extends UnknownZodType>(opts: CreateResponseOpts
     text: {
       format: zodTextFormat(opts.schema, 'structured'),
     },
+    reasoning: {
+      effort: 'medium',
+      summary: 'auto',
+    },
     ...(opts.maxOutputTokens ? { max_output_tokens: opts.maxOutputTokens } : {}),
     ...(opts.previousResponseId ? { previous_response_id: opts.previousResponseId } : {}),
   });
@@ -125,8 +164,8 @@ async function createResponse<T extends UnknownZodType>(opts: CreateResponseOpts
 async function createResponseStream<T extends UnknownZodType>(opts: CreateResponseOpts<T>) {
   return ai.responses.stream({
     model: opts.model ?? DEFAULT_MODEL,
+    instructions: opts.systemPrompt,
     input: [
-      { role: 'system', content: opts.systemPrompt },
       {
         role: 'user',
         content: Array.isArray(opts.userPrompt)
@@ -139,6 +178,10 @@ async function createResponseStream<T extends UnknownZodType>(opts: CreateRespon
     ],
     text: {
       format: zodTextFormat(opts.schema, 'structured'),
+    },
+    reasoning: {
+      effort: 'high',
+      summary: 'auto',
     },
     ...(opts.maxOutputTokens ? { max_output_tokens: opts.maxOutputTokens } : {}),
     ...(opts.previousResponseId ? { previous_response_id: opts.previousResponseId } : {}),
