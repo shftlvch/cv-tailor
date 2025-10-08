@@ -1,4 +1,4 @@
-import { write as writeFile } from 'bun';
+import { file, write as writeFile } from 'bun';
 
 const TMP_DIR = './.tmp';
 
@@ -21,15 +21,19 @@ export async function write(
   } else {
     fileContent = Bun.YAML.stringify(data, null, 2);
   }
-  return writeFile(`${tmp ? `${TMP_DIR}/` : ''}${generateFileName(filename)}.${format}`, fileContent);
-}
+  let filePath = `${tmp ? `${TMP_DIR}/` : ''}${generateFileName(filename)}.${format}`;
+  if (await file(filePath).exists()) {
+    filePath = `${tmp ? `${TMP_DIR}/` : ''}${generateFileName(`${filename}-${new Date().toISOString()}`)}.${format}`;
+  }
 
+  return writeFile(filePath, fileContent);
+}
 
 const LOG_FILE = `${TMP_DIR}/log.log`;
 const logFile = Bun.file(LOG_FILE);
 const logWriter = logFile.writer();
 
 export function logToFile(level: 'debug' | 'info' | 'warn' | 'error', message: string, data: unknown) {
-  logWriter.write(`[${level}] ${message} ${JSON.stringify(data, null, 2)}\n`, );
+  logWriter.write(`[${level}] ${message} ${JSON.stringify(data, null, 2)}\n`);
   logWriter.flush();
 }
