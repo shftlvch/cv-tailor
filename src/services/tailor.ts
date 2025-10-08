@@ -112,7 +112,7 @@ Formatting:
     schema: OptimiseTitlesSchema,
     model: 'gpt-5-mini',
     stream: true,
-    progress: 'status',
+    progress: 'reasoning',
   });
 }
 
@@ -172,7 +172,7 @@ Formatting:
       ...(feedback ? [`The feedback received for the previous response:`, JSON.stringify(feedback)] : []),
     ],
     stream: true,
-    progress: 'status',
+    progress: 'reasoning',
     schema: OptimiseProfileSchema,
   });
 }
@@ -391,9 +391,9 @@ You will need to extract and convert into given structure. Do not modify the ori
     systemPrompt,
     userPrompt: jobDescription,
     schema: JDExctractionSchema,
-    model: 'gpt-5',
+    model: 'o3',
     stream: true,
-    progress: 'status',
+    progress: 'reasoning',
   });
   return {
     structured: response,
