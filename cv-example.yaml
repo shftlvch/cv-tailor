@@ -1,0 +1,147 @@
+#
+# This is the example CV that you should use as a reference to create your own CV or test the tool.
+# Replace George's details with your own and have fun!
+#
+name: George Smiley
+# Tailor or Tinker will change 3 most relevant titles and optimise them.
+titles:
+  - Senior Node.js Developer
+  - TypeScript & Microservices Architect
+  - Legacy Code Investigator
+  - Distributed Systems Specialist
+  - Debugging Operations Expert
+  - Mole Detection Engineer
+
+# Only usernames for github and linkedin.
+contacts:
+  - type: phone
+    value: +44 20 7946‑0958
+  - type: email
+    value: g.smiley@circus-tech.co.uk
+  - type: github
+    value: beggarman-dev
+  - type: linkedin
+    value: george-smiley-circus
+
+# Your location and availability.
+location: London, UK (willing to come out of retirement)
+
+# Your profile that will be optimised based on the job description by Tailor or based on the prompt by Tinker.
+profile: >
+  Methodical Senior Node.js Developer with 30+ years' experience in deep system analysis and debugging complex 
+  distributed architectures. Specialises in identifying security vulnerabilities, memory leaks, and rogue processes 
+  in legacy codebases. Known for patient, thorough investigations that uncover hidden bugs others miss. Expert at 
+  cleaning up messy code (and glasses) while maintaining operational security. Particularly skilled at finding 
+  that one problematic service hiding in your microservices architecture.
+
+# Work Experience, only achievements and stack will be optimised based on the job description by Tailor or based on the prompt by Tinker.
+# Hint: Add as many achievements as possible, the more the better, they will be sorted by relevance and shrunk if it exceeds one page when generating the PDF.
+work:
+  - company: The Circus Technologies Ltd
+    description: Intelligence-Grade Software Solutions
+    link: https://circus-tech.co.uk
+    location: Cambridge Circus, London
+    position: Chief Debugging Officer
+    start: Jan 2020
+    end: present
+    achievements:
+      - Led "Operation Testify" - identified and removed critical memory leak affecting 5 production services
+      - Implemented zero-trust architecture after discovering unauthorised data exfiltration to Moscow servers
+      - Reduced incident response time by 73% through methodical logging and monitoring strategies
+      - Built "Witchcraft" - an internal tool for detecting suspicious API calls and rogue services
+      - Successfully debugged legacy codebase written by former colleague Bill (who left for "personal reasons")
+      - Maintained 99.9% uptime despite frequent attempts to compromise our systems from external actors
+      - Introduced "Trust No Service" policy, implementing comprehensive service-to-service authentication
+    stack:
+      - Node.js
+      - TypeScript
+      - Kubernetes
+      - Redis (for dead drops)
+      - GraphQL
+      - Docker
+      - Prometheus
+      - ELK Stack
+      - RabbitMQ
+      - JWT (with extra validation)
+
+  - company: Control Systems International
+    description: Legacy System Modernisation Specialists
+    position: Senior Software Architect
+    location: London
+    start: Mar 2015
+    end: Dec 2019
+    achievements:
+      - Inherited chaotic microservices architecture from predecessor (RIP Control)
+      - Discovered critical security flaw in authentication service codenamed "Gerald"
+      - Implemented end-to-end encryption for all inter-service communications
+      - Created "Safe House" pattern for isolating suspicious services during investigation
+      - Reduced technical debt by 60% through careful refactoring (no rushing, no panic)
+      - Built monitoring dashboard displaying service health using nursery rhyme naming convention
+    stack:
+      - Express.js
+      - MongoDB
+      - Socket.io
+      - AWS Lambda
+      - Jenkins
+      - Nginx
+      - PM2
+      - Mocha/Chai
+
+  - company: Budapest Dev Collective
+    description: International Software Consultancy
+    position: Lead Backend Developer
+    location: Budapest/Remote
+    start: Jun 2010
+    end: Feb 2015
+    achievements:
+      - Developed distributed tracing system to track requests across Iron Curtain of microservices
+      - Created "Irina" - an AI-powered code review bot that catches suspicious commits
+      - Implemented circuit breakers preventing cascade failures (codename "Toby Pattern")
+      - Built real-time monitoring for detecting anomalous database queries
+      - Mentored junior developer Peter Guillam in advanced debugging techniques
+    stack:
+      - Node.js
+      - PostgreSQL
+      - Kafka
+      - Elasticsearch
+      - React.js
+      - Docker Swarm
+      - Consul
+      - Vault
+
+# Education (this section is copied to the final doc AS IS)
+education:
+  - title: Computer Science — Bachelor's degree
+    school: Oxford University
+    location: Oxford, UK
+    end: 1991
+  - title: Advanced Debugging and System Analysis
+    description: Specialised training in identifying hidden bugs and security vulnerabilities
+    school: GCHQ Technical Academy
+    end: 1993
+  - title: Microservices Architecture Patterns
+    description: Focus on trust boundaries and service isolation
+    school: ThoughtWorks
+    end: 2018
+
+# Extras and Skills (this section is copied to the final doc AS IS)
+extras:
+  - title: Author
+    organization: 'Debugging in the Dark: Finding Moles in Your Codebase'
+    description: Published guide on identifying problematic code and developers
+    start: 2021
+    end: present
+  - title: Conference Speaker
+    organization: NodeConf EU
+    description: "Talk: 'The Honourable Codebase - Building Systems You Can Trust'"
+    start: 2022
+    end: 2022
+  - title: Open Source Contributor
+    organization: npm package "karla-validator"
+    description: Lightweight validation library with no external dependencies (trust issues)
+    start: 2020
+    end: present
+  - title: Languages
+    description: JavaScript (native), TypeScript (fluent), Python (conversational), Russian (for reading error logs)
+  - title: Special Skills
+    description: Memory leak detection, patient debugging, cleaning glasses while thinking, finding needles in haystacks
