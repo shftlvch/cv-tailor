@@ -152,7 +152,7 @@ Use ATS keywords, tech stack, and key requirements, and key skills to make the p
 Keep language of the profile aligned with the job description language.
 
 Formatting:
-- Maximum 700 characters
+- Maximum 300—400 characters
 `;
   return askStructured({
     previousResponseId,

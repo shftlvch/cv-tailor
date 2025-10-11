@@ -56,4 +56,5 @@ node_modules/
 .examples
 *.yaml
 !cv-example.yaml
+prompt.md
 *.pdf

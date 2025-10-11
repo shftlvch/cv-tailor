@@ -91,7 +91,7 @@ Guidelines:
 - Incorporate relevant keywords naturally
 
 Formatting:
-- Maximum 700 characters
+- Maximum 300—400 characters
 `;
   return askStructured({
     previousResponseId,
