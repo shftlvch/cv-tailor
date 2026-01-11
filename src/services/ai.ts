@@ -189,9 +189,10 @@ async function createResponseStream<T extends UnknownZodType>(opts: CreateRespon
 }
 
 export async function askStructured<T extends UnknownZodType>(opts: AskStructuredOpts<T>) {
-  const response = opts.stream
-    ? await processStream(await createResponseStream<T>(opts), { progress: opts.progress })
-    : await createResponse<T>(opts);
+  const response =
+    opts.stream && !process.env.DISABLE_STREAMING
+      ? await processStream(await createResponseStream<T>(opts), { progress: opts.progress })
+      : await createResponse<T>(opts);
   return {
     responseId: response.id,
     response: processResponse(response, opts.schema),
